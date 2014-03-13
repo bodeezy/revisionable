@@ -15,7 +15,10 @@ trait RevisionableTrait
     private $updating;
     private $dontKeep = array();
     private $doKeep = array();
-
+    private $user_geo_ip = null;
+    private $user_geo_country = null;
+    private $user_geo_region = null;
+    private $user_geo_city = null;
 
     /**
      * Keeps the list of values that have been updated
@@ -33,7 +36,8 @@ trait RevisionableTrait
     public static function boot()
     {
         parent::boot();
-
+        $this->getGeo();
+        
         static::saving(function($model)
         {
             $model->preSave();
@@ -42,6 +46,16 @@ trait RevisionableTrait
         static::saved(function($model)
         {
             $model->postSave();
+        });
+        
+        static::created(function($model)
+        {
+            $model->created();
+        });
+        
+        static::deleted(function($model)
+        {
+            $model->deleted();
         });
 
     }
@@ -135,6 +149,81 @@ trait RevisionableTrait
 
         }
 
+    }
+    
+    public function created()
+    {
+        
+                $revisions[] = array(
+                    'revisionable_type'     => get_class($this),
+                    'revisionable_id'       => $this->getKey(),
+                    'key'                   => 'all',
+                    'old_value'             => '',
+                    'new_value'             => '',
+                    'user_id'               => $this->getUserId(),
+                    'action'                => 'created',
+                    'summary'               => '',
+                    'event'                 => 'created',
+                    'ip'                    => $this->user_geo_ip,
+                    'country'               => $this->user_geo_country,
+                    'city'                  => $this->user_geo_city,
+                    'region'                => $this->user_geo_region,
+                );
+
+            
+            if (count($revisions) > 0) {
+                $revision = new Revision;
+                \DB::table($revision->getTable())->insert($revisions);
+            }
+
+
+    }
+    
+    public function getGeo(){
+        
+        try {
+            if (class_exists('TrafficController')) {
+                $dims = TrafficController::getClientDims();
+                $deep = TrafficController::getClientDeep();
+                
+                $this->user_geo_ip = $deep['ip'];
+                $this->user_geo_country = $dims['geo_country'];
+                $this->user_geo_region = $dims['geo_region'];
+                $this->user_geo_city = $dims['geo_city'];
+                return true;
+            } else {
+                return false;
+            }
+        } catch (\Exception $e) {
+            return false;
+        }
+
+        return false;
+    }
+    public function deleted()
+    {
+
+        $revisions[] = array(
+                    'revisionable_type'     => get_class($this),
+                    'revisionable_id'       => $this->getKey(),
+                    'key'                   => 'all',
+                    'old_value'             => '',
+                    'new_value'             => '',
+                    'user_id'               => $this->getUserId(),
+                    'action'                => 'deleted',
+                    'summary'               => '',
+                    'event'                 => 'deleted',
+                    'ip'                    => $this->user_geo_ip,
+                    'country'               => $this->user_geo_country,
+                    'city'                  => $this->user_geo_city,
+                    'region'                => $this->user_geo_region,
+                );
+
+            
+            if (count($revisions) > 0) {
+                $revision = new Revision;
+                \DB::table($revision->getTable())->insert($revisions);
+            }
     }
 
 
